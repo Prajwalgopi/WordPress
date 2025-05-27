@@ -1,0 +1,83 @@
+version: 0.2
+
+env:
+  variables:
+    AWS_REGION: "us-east-1"
+    ECR_REGISTRY: "195275633219.dkr.ecr.us-east-1.amazonaws.com"
+    REPO_NAME: "eks-repo"
+    IMAGE_TAG: "wordpress-final"
+    EKS_CLUSTER_NAME: "my-eks-cluster"
+    K8S_NAMESPACE: "eks-project"
+    DEPLOYMENT_NAME: "wordpress"
+
+phases:
+  install:
+    commands:
+      - echo "Installing dependencies..."
+      - curl -o kubectl https://amazon-eks.s3.us-west-2.amazonaws.com/1.21.2/2021-07-05/bin/linux/amd64/kubectl || { echo "[WARNING] Failed to download kubectl (may affect post_build)"; }
+      - chmod +x ./kubectl
+      - mv ./kubectl /usr/local/bin/
+
+  pre_build:
+    commands:
+      - echo "Logging in to Amazon ECR..."
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY || { echo "ECR login failed"; exit 1; }
+      - echo "Updating kubeconfig..."
+      - aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME || { echo "[WARNING] kubeconfig update failed (post_build will retry)"; }
+
+  build:
+    commands:
+      # Docker build & push
+      - echo "Building and pushing Docker image..."
+      - docker build -t $ECR_REGISTRY/$REPO_NAME:$CODEBUILD_RESOLVED_SOURCE_VERSION . || { echo "Docker build failed"; exit 1; }
+      - docker tag $ECR_REGISTRY/$REPO_NAME:$CODEBUILD_RESOLVED_SOURCE_VERSION $ECR_REGISTRY/$REPO_NAME:$IMAGE_TAG || { echo "Docker tag failed"; exit 1; }
+      - docker push $ECR_REGISTRY/$REPO_NAME:$CODEBUILD_RESOLVED_SOURCE_VERSION || { echo "Docker push failed"; exit 1; }
+      - docker push $ECR_REGISTRY/$REPO_NAME:$IMAGE_TAG || { echo "Docker push failed"; exit 1; }
+
+      # Kubernetes deployment
+      - echo "Applying Kubernetes manifests..."
+      - kubectl apply -f service.yaml -n $K8S_NAMESPACE || { echo "[WARNING] Service apply failed"; }
+      - kubectl apply -f ingress.yaml -n $K8S_NAMESPACE || { echo "[WARNING] Ingress apply failed"; }
+      - kubectl apply -f hpa.yaml -n $K8S_NAMESPACE || { echo "[WARNING] HPA apply failed"; }
+
+      - echo "Updating deployment..."
+      - |
+       if kubectl get deployment "$DEPLOYMENT_NAME" -n "$K8S_NAMESPACE"; then
+        echo "Deployment exists. Restarting to apply new image..."
+        kubectl rollout restart deployment "$DEPLOYMENT_NAME" -n "$K8S_NAMESPACE"
+        echo "Verifying deployment rollout..."
+        kubectl rollout status deployment "$DEPLOYMENT_NAME" -n "$K8S_NAMESPACE"
+       else
+        echo "Deployment not found. Applying deployment manifest..."
+        kubectl apply -f Deployment.yaml -n "$K8S_NAMESPACE"
+        echo "Deployment created successfully."
+       fi
+
+  post_build:
+    commands:
+      - echo "=== POST-BUILD PHASE ==="
+      - echo "Reconnecting to EKS cluster (if needed)..."
+      - aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME || { echo "[ERROR] Failed to update kubeconfig in post_build"; }
+      
+      - echo "Current deployment status:"
+      - kubectl get deployment/$DEPLOYMENT_NAME -n $K8S_NAMESPACE -o wide || { echo "[ERROR] Could not fetch deployment"; }
+      
+      - echo "Pod status:"
+      - kubectl get pods -n $K8S_NAMESPACE || { echo "[ERROR] Could not fetch pods"; }
+      
+      - echo "Rollout history:"
+      - kubectl rollout history deployment/$DEPLOYMENT_NAME -n $K8S_NAMESPACE || { echo "[WARNING] No rollout history"; }
+      
+      - |
+        if [ "$CODEBUILD_BUILD_SUCCEEDING" -eq 0 ]; then
+          echo " BUILD FAILED! Check logs above."
+        else
+          echo " Build completed. Verify deployment manually if needed."
+        fi
+
+artifacts:
+  files:
+    - Deployment.yaml
+    - service.yaml
+    - ingress.yaml
+    - hpa.yaml

@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wordpress
+  namespace: eks-project  # Explicitly specify the namespace
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: wordpress
+  template:
+    metadata:
+      labels:
+        app: wordpress
+    spec:
+      serviceAccountName: wordpress-sa  # Use the service account for Secrets Manager access
+      containers:
+        - name: wordpress
+          image: 381492057237.dkr.ecr.us-east-1.amazonaws.com/wordpress-custom:latest
+          imagePullPolicy: Always  # Always pull the latest image
+          #image: {{IMAGE}}  # Placeholder for ECR image, updated by CodePipeline
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "512Mi"  # Increase the memory request
+              cpu: "500m"      # Increase CPU request
+              #cpu: "200m"
+            limits:
+              memory: "1Gi"    # Increase the memory limit
+              cpu: "1"         # Increase CPU limit
+              #cpu: "200m"
