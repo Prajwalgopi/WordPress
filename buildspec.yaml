@@ -3,10 +3,10 @@ version: 0.2
 env:
   variables:
     AWS_REGION: "us-east-1"
-    ECR_REGISTRY: "195275633219.dkr.ecr.us-east-1.amazonaws.com"
-    REPO_NAME: "eks-repo"
-    IMAGE_TAG: "wordpress-final"
-    EKS_CLUSTER_NAME: "my-eks-cluster"
+    ECR_REGISTRY: "381492057237.dkr.ecr.us-east-1.amazonaws.com/wordpress-custom"
+    REPO_NAME: "wordpress-custom"
+    IMAGE_TAG: "latest"
+    EKS_CLUSTER_NAME: "WP-Cluster"
     K8S_NAMESPACE: "eks-project"
     DEPLOYMENT_NAME: "wordpress"
 
