@@ -28,10 +28,10 @@ phases:
     commands:
       # Docker build & push
       - echo "Building and pushing Docker image..."
-      - docker build -t $ECR_REGISTRY/$REPO_NAME:$CODEBUILD_RESOLVED_SOURCE_VERSION . || { echo "Docker build failed"; exit 1; }
-      - docker tag $ECR_REGISTRY/$REPO_NAME:$CODEBUILD_RESOLVED_SOURCE_VERSION $ECR_REGISTRY/$REPO_NAME:$IMAGE_TAG || { echo "Docker tag failed"; exit 1; }
-      - docker push $ECR_REGISTRY/$REPO_NAME:$CODEBUILD_RESOLVED_SOURCE_VERSION || { echo "Docker push failed"; exit 1; }
-      - docker push $ECR_REGISTRY/$REPO_NAME:$IMAGE_TAG || { echo "Docker push failed"; exit 1; }
+      - sudo docker build -t $ECR_REGISTRY/$REPO_NAME:$CODEBUILD_RESOLVED_SOURCE_VERSION . || { echo "Docker build failed"; exit 1; }
+      - sudo docker tag $ECR_REGISTRY/$REPO_NAME:$CODEBUILD_RESOLVED_SOURCE_VERSION $ECR_REGISTRY/$REPO_NAME:$IMAGE_TAG || { echo "Docker tag failed"; exit 1; }
+      - sudo docker push $ECR_REGISTRY/$REPO_NAME:$CODEBUILD_RESOLVED_SOURCE_VERSION || { echo "Docker push failed"; exit 1; }
+      - sudo docker push $ECR_REGISTRY/$REPO_NAME:$IMAGE_TAG || { echo "Docker push failed"; exit 1; }
 
       # Kubernetes deployment
       - echo "Applying Kubernetes manifests..."
